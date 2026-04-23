@@ -3,7 +3,7 @@ name: Backup4App KeepAlive
 on:
   schedule:
     # 每 6 小时运行一次 (你可以根据需要调整频率)
-    - cron: '0 */2 * * *'
+    - cron: '0 */6 * * *'
   workflow_dispatch: # 允许手动点击运行，方便测试
 
 jobs:
@@ -11,10 +11,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: [actions/checkout](https://github.com/actions/checkout)@v4
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: [actions/setup-python](https://github.com/actions/setup-python)@v4
+        uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
