@@ -3,7 +3,7 @@ name: Backup4App KeepAlive
 on:
   schedule:
     # 每 6 小时运行一次 (你可以根据需要调整频率)
-    - cron: '0 */1 * * *'
+    - cron: '0 */2 * * *'
   workflow_dispatch: # 允许手动点击运行，方便测试
 
 jobs:
