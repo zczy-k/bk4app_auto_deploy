@@ -7,16 +7,48 @@ sdk: docker
 pinned: false
 ---
 
-Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
+Backup4App 容器自动重新部署。
 
-**注意事项**
+## 使用方式
 
-复制.env.example为.env，填写backup账户和密码
+复制 `.env.example` 为 `.env`，填写 Back4App 账号信息或 `BACK4APP_COOKIE`。
 
-docker-compose部署直接执行`docker-compose up -d --build`
+本项目支持两种 Docker 部署方式：
 
-部署在HugFace需要把.env文件放到仓库代码里面
+- 本地构建并启动：`docker compose up -d --build`
+- 直接拉取 GitHub Container Registry 镜像：`ghcr.io/zczy-k/bk4app_auto_deploy:latest`
 
-**友情链接**
+## GitHub 镜像自动构建
+
+仓库内置了 GitHub Actions 工作流，在以下情况会自动构建并推送镜像到 GitHub Container Registry:
+
+- 推送到 `master`
+- 推送形如 `v*` 的标签
+- 手动触发工作流
+
+镜像地址：`ghcr.io/zczy-k/bk4app_auto_deploy`
+
+常用标签：
+
+- `latest`
+- `master`
+- `sha-<commit>`
+- `vX.Y.Z`
+
+## 拉取镜像部署
+
+```bash
+docker pull ghcr.io/zczy-k/bk4app_auto_deploy:latest
+docker run -d \
+  --name auto_deploy \
+  --restart unless-stopped \
+  --env-file .env \
+  -p 7860:7860 \
+  -v ${PWD}/deploy_history.json:/app/deploy_history.json \
+  -v ${PWD}/.env:/app/.env \
+  ghcr.io/zczy-k/bk4app_auto_deploy:latest
+```
+
+## 友情链接
 
 https://linux.do/

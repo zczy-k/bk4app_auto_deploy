@@ -24,6 +24,25 @@
 2. Fill `BACK4APP_COOKIE` and related values
 3. Run `docker compose up -d --build`
 
+## Pull From GHCR
+
+- Image: `ghcr.io/zczy-k/bk4app_auto_deploy:latest`
+- The image is published by GitHub Actions on pushes to `master`, version tags, or manual runs
+
+Example:
+
+```bash
+docker pull ghcr.io/zczy-k/bk4app_auto_deploy:latest
+docker run -d \
+  --name auto_deploy \
+  --restart unless-stopped \
+  --env-file .env \
+  -p 7860:7860 \
+  -v ${PWD}/deploy_history.json:/app/deploy_history.json \
+  -v ${PWD}/.env:/app/.env \
+  ghcr.io/zczy-k/bk4app_auto_deploy:latest
+```
+
 ## Health Check
 
 - `GET /`
