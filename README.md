@@ -32,7 +32,16 @@ GitHub Container Registry 镜像地址：
 
 ## 环境变量
 
-推荐至少配置以下变量：
+最小必需配置：
+
+```env
+BACK4APP_EMAIL=你的Back4App登录邮箱
+BACK4APP_PASSWORD=你的Back4App登录密码
+PORT=7860
+RUN_ON_STARTUP=true
+```
+
+推荐完整配置：
 
 ```env
 BACK4APP_EMAIL=你的Back4App登录邮箱
@@ -58,6 +67,10 @@ APP_ID_MAP_JSON={}
 
 说明：
 
+- 最小可用配置只需要 `BACK4APP_EMAIL`、`BACK4APP_PASSWORD`、`PORT`、`RUN_ON_STARTUP`
+- `CRON_SCHEDULE` 不写时，默认就是每 1 分钟检查一次
+- `LOG_LEVEL` 不写时，默认就是 `INFO`
+- `APP_ID_MAP_JSON` 不写时，程序会按空映射处理，并在需要时自动补全
 - `BACK4APP_COOKIE` 会过期，不建议只依赖 Cookie
 - 推荐同时设置 `BACK4APP_EMAIL`、`BACK4APP_PASSWORD`、`BACK4APP_COOKIE`
 - 如果 Cookie 失效，程序会尝试用邮箱密码重新获取
@@ -84,13 +97,11 @@ cp .env.example .env
 ```env
 BACK4APP_EMAIL=你的Back4App登录邮箱
 BACK4APP_PASSWORD=你的Back4App登录密码
-BACK4APP_COOKIE=可选，当前有效Cookie
-CRON_SCHEDULE=*/1 * * * *
 PORT=7860
-LOG_LEVEL=INFO
 RUN_ON_STARTUP=true
-APP_ID_MAP_JSON={}
 ```
+
+如果你想显式写全所有配置，再使用推荐完整配置。
 
 4. 启动
 
@@ -112,14 +123,12 @@ docker compose logs -f
 cat > .env <<'EOF'
 BACK4APP_EMAIL=你的Back4App登录邮箱
 BACK4APP_PASSWORD=你的Back4App登录密码
-BACK4APP_COOKIE=可选，当前有效Cookie
-CRON_SCHEDULE=*/1 * * * *
 PORT=7860
-LOG_LEVEL=INFO
 RUN_ON_STARTUP=true
-APP_ID_MAP_JSON={}
 EOF
 ```
+
+如果你希望手动覆盖默认行为，可以再补充 `BACK4APP_COOKIE`、`CRON_SCHEDULE`、`LOG_LEVEL`、`APP_ID_MAP_JSON`。
 
 2. 拉取镜像
 
@@ -155,9 +164,18 @@ docker logs -f auto_deploy
 - 容器端口：`7860`
 - 健康检查路径：`/health`
 - 启动命令：留空
-- 环境变量：按上面的完整环境变量表填写
+- 环境变量：优先使用上面的最小必需配置
 
-平台环境变量建议填写：
+平台最小环境变量：
+
+```env
+BACK4APP_EMAIL=你的Back4App登录邮箱
+BACK4APP_PASSWORD=你的Back4App登录密码
+PORT=7860
+RUN_ON_STARTUP=true
+```
+
+平台推荐完整环境变量：
 
 ```env
 BACK4APP_EMAIL=你的Back4App登录邮箱
