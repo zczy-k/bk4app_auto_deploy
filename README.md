@@ -259,6 +259,7 @@ APP_ID_MAP_JSON={}
 - `BACK4APP_EMAIL` 或 `BACK4APP_PASSWORD` 填错
 - Back4App 登录流程出现验证码或二次验证
 - 登录页面发生变化，导致 Playwright 无法找到输入框
+- Playwright Python 版本和 Docker 基础镜像内置浏览器版本不一致
 
 ### 3. Cookie 有效但过一段时间失效
 
