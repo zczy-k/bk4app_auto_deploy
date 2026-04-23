@@ -2,7 +2,6 @@
 import json
 import os
 import sys
-import time
 
 import requests
 from dotenv import load_dotenv
@@ -10,18 +9,7 @@ from loguru import logger
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-CONFIG_FILE = "deploy_history.json"
 API_URL = "https://api.containers.back4app.com"
-EXPIRATION_WINDOW = 3300
-LAST_DEPLOY = "last_deploy"
-
-
-def str_to_bool(value, default=True):
-    if value is None:
-        return default
-    return str(value).strip().lower() in {"1", "true", "yes", "on"}
-
-
 def build_session():
     session = requests.Session()
     retry = Retry(
@@ -44,7 +32,6 @@ def load_runtime_config():
     load_dotenv(override=True)
     cookie = os.getenv("BACK4APP_COOKIE", "").strip()
     raw_app_id_map = os.getenv("APP_ID_MAP_JSON", "").strip()
-    request_timeout = int(os.getenv("REQUEST_TIMEOUT", "20"))
 
     app_id_map = {}
     if raw_app_id_map:
@@ -62,7 +49,7 @@ def load_runtime_config():
         "Cookie": cookie,
         "Referer": "https://dashboard.back4app.com/",
     }
-    return cookie, headers, app_id_map, request_timeout
+    return cookie, headers, app_id_map
 
 
 def ensure_cookie_present(cookie):
@@ -71,20 +58,6 @@ def ensure_cookie_present(cookie):
     raise RuntimeError(
         "Missing BACK4APP_COOKIE. Run `python get_cookie.py` first or set BACK4APP_COOKIE in .env"
     )
-
-
-def load_history():
-    if os.path.exists(CONFIG_FILE):
-        logger.info(f"his conf file {CONFIG_FILE} exists...")
-        with open(CONFIG_FILE, "r", encoding="utf-8") as file:
-            return json.load(file)
-    return {}
-
-
-def save_history(history):
-    with open(CONFIG_FILE, "w", encoding="utf-8") as file:
-        json.dump(history, file, indent=2, ensure_ascii=False)
-        logger.info(f"saved history {history} to {CONFIG_FILE}")
 
 
 def update_env_app_id_map(app_id, service_env_id, env_path=".env"):
@@ -171,13 +144,13 @@ def try_refresh_cookie():
     import get_cookie
 
     get_cookie.main()
-    cookie, headers, _, _ = load_runtime_config()
+    cookie, headers, _ = load_runtime_config()
     ensure_cookie_present(cookie)
     return headers
 
 
 def list_apps():
-    cookie, headers, _, _ = load_runtime_config()
+    cookie, headers, _ = load_runtime_config()
     ensure_cookie_present(cookie)
     try:
         apps = fetch_apps(headers)
@@ -227,16 +200,8 @@ def trigger_deploy(service_env_id, headers):
 
 
 def auto_redeploy():
-    cookie, headers, app_id_map, _ = load_runtime_config()
+    cookie, headers, app_id_map = load_runtime_config()
     ensure_cookie_present(cookie)
-
-    history = load_history()
-    last_deploy = history.get(LAST_DEPLOY, 0)
-    current_time = time.time()
-    if current_time - last_deploy < EXPIRATION_WINDOW:
-        minutes_left = int((EXPIRATION_WINDOW - (current_time - last_deploy)) / 60)
-        logger.info("Recent deploy still in cooldown, next check in about {} minutes", minutes_left)
-        return
 
     apps = list_apps()
     if not apps:
@@ -269,8 +234,6 @@ def auto_redeploy():
 
         logger.warning("{} domain expired, triggering redeploy", app_name)
         if trigger_deploy(env_id, headers):
-            history[LAST_DEPLOY] = time.time()
-            save_history(history)
             logger.success("{} deploy triggered successfully", app_name)
         else:
             logger.error("{} deploy failed", app_name)

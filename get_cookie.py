@@ -129,7 +129,7 @@ def update_env_cookie(cookie_string, env_path=".env"):
     logger.success("Cookie written to {}", env_path)
 
 
-def validate_cookie(cookie_string, ssl_verify=True):
+def validate_cookie(cookie_string):
     response = requests.post(
         "https://api.containers.back4app.com",
         json={
@@ -141,7 +141,6 @@ def validate_cookie(cookie_string, ssl_verify=True):
             "Referer": "https://dashboard.back4app.com/",
         },
         timeout=20,
-        verify=ssl_verify,
     )
     return response.status_code == 200 and "errors" not in response.text
 
@@ -167,11 +166,11 @@ def main():
     logger.info("Validating cookie")
     if validate_cookie(cookie_string):
         logger.success("Cookie validation succeeded")
-        return 1
+        return 0
 
     logger.error("Cookie validation failed")
-    return 0
+    return 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

@@ -1,17 +1,8 @@
----
-title: Backup4AppAutoDeploy
-emoji: 💻
-colorFrom: gray
-colorTo: red
-sdk: docker
-pinned: false
----
-
 Backup4App 容器自动重新部署。
 
 ## 使用方式
 
-复制 `.env.example` 为 `.env`，填写 Back4App 账号信息或 `BACK4APP_COOKIE`。
+复制 `.env.example` 为 `.env`，填写 Back4App 账号信息和可选的 `BACK4APP_COOKIE`。
 
 本项目支持两种 Docker 部署方式：
 
@@ -44,7 +35,6 @@ docker run -d \
   --restart unless-stopped \
   --env-file .env \
   -p 7860:7860 \
-  -v ${PWD}/deploy_history.json:/app/deploy_history.json \
   -v ${PWD}/.env:/app/.env \
   ghcr.io/zczy-k/bk4app_auto_deploy:latest
 ```

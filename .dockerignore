@@ -4,5 +4,4 @@ __pycache__
 *.pyc
 *.pyo
 *.pyd
-#.env
-deploy_history.json
+.env
