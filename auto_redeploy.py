@@ -109,19 +109,16 @@ def compute_window(anchor_time):
     return window_start, window_end
 
 
-def get_anchor_time(state, current_time):
+def get_anchor_time(state):
     anchor_time = parse_timestamp(state.get("anchor_time"))
-    if anchor_time is None:
-        # Bootstrap with an immediate detection window after first startup.
-        anchor_time = current_time - timedelta(minutes=WINDOW_DELAY_MINUTES)
-        state["anchor_time"] = format_timestamp(anchor_time)
-        save_runtime_state(state)
-        logger.info("Initialized detection anchor at {}", format_timestamp(anchor_time))
     return anchor_time
 
 
 def align_anchor_time(state, current_time):
-    anchor_time = get_anchor_time(state, current_time)
+    anchor_time = get_anchor_time(state)
+    if anchor_time is None:
+        return None
+
     advanced = False
 
     while True:
@@ -142,6 +139,43 @@ def set_anchor_time(state, anchor_time):
     state["anchor_time"] = format_timestamp(anchor_time)
     state["last_deploy_time"] = format_timestamp(anchor_time)
     save_runtime_state(state)
+
+
+def bootstrap_anchor_if_needed(apps, app_id_map, headers, state):
+    if get_anchor_time(state) is not None:
+        return False
+
+    logger.warning("No deploy anchor found, triggering an initial redeploy to establish schedule")
+    for app in apps:
+        app_name = app["mainService"]["repository"]["fullName"]
+        env_id = resolve_service_env_id(app, app_id_map)
+
+        if not env_id:
+            discovered_env_id = app["mainService"]["mainServiceEnvironment"]["id"]
+            if discovered_env_id:
+                app_id_map = update_env_app_id_map(app["id"], discovered_env_id)
+                env_id = app_id_map.get(app["id"], "")
+                logger.warning(
+                    "{} mapping was missing and has been written to .env: {} -> {}",
+                    app_name,
+                    app["id"],
+                    discovered_env_id,
+                )
+
+        if not env_id:
+            logger.warning("{} missing service environment id mapping, cannot bootstrap deploy", app_name)
+            continue
+
+        logger.warning("{} bootstrap redeploy triggered to create initial anchor", app_name)
+        if trigger_deploy(env_id, headers):
+            deploy_time = now_in_beijing()
+            set_anchor_time(state, deploy_time)
+            logger.success("{} bootstrap deploy triggered successfully", app_name)
+            return True
+
+        logger.error("{} bootstrap deploy failed", app_name)
+
+    return False
 
 
 def update_env_app_id_map(app_id, service_env_id, env_path=".env"):
@@ -293,6 +327,17 @@ def auto_redeploy():
         return
 
     state = load_runtime_state()
+    anchor_time = get_anchor_time(state)
+    if anchor_time is None:
+        apps = list_apps()
+        if not apps:
+            logger.warning("No apps fetched, cannot establish initial deploy anchor")
+            return
+        if bootstrap_anchor_if_needed(apps, app_id_map, headers, state):
+            return
+        logger.warning("Initial deploy anchor bootstrap did not succeed")
+        return
+
     anchor_time = align_anchor_time(state, current_time)
     window_start, window_end = compute_window(anchor_time)
     if current_time < window_start:
