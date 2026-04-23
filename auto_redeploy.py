@@ -2,6 +2,7 @@
 import json
 import os
 import sys
+from datetime import datetime, timedelta, timezone
 
 import requests
 from dotenv import load_dotenv
@@ -10,6 +11,13 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 API_URL = "https://api.containers.back4app.com"
+STATE_FILE = "runtime_state.json"
+BEIJING_TZ = timezone(timedelta(hours=8))
+QUIET_START_HOUR = 1
+ACTIVE_START_HOUR = 6
+WINDOW_DELAY_MINUTES = 55
+WINDOW_DURATION_MINUTES = 10
+CYCLE_INTERVAL_MINUTES = 60
 def build_session():
     session = requests.Session()
     retry = Retry(
@@ -58,6 +66,82 @@ def ensure_cookie_present(cookie):
     raise RuntimeError(
         "Missing BACK4APP_COOKIE. Run `python get_cookie.py` first or set BACK4APP_COOKIE in .env"
     )
+
+
+def now_in_beijing():
+    return datetime.now(BEIJING_TZ)
+
+
+def parse_timestamp(value):
+    if not value:
+        return None
+    return datetime.fromisoformat(value)
+
+
+def format_timestamp(value):
+    return value.isoformat(timespec="seconds")
+
+
+def load_runtime_state():
+    if not os.path.exists(STATE_FILE):
+        return {}
+
+    with open(STATE_FILE, "r", encoding="utf-8") as file:
+        try:
+            return json.load(file)
+        except json.JSONDecodeError as exc:
+            logger.warning("State file {} is invalid, reset it: {}", STATE_FILE, exc)
+            return {}
+
+
+def save_runtime_state(state):
+    with open(STATE_FILE, "w", encoding="utf-8") as file:
+        json.dump(state, file, indent=2, ensure_ascii=False)
+
+
+def is_quiet_hours(current_time):
+    return QUIET_START_HOUR <= current_time.hour < ACTIVE_START_HOUR
+
+
+def compute_window(anchor_time):
+    window_start = anchor_time + timedelta(minutes=WINDOW_DELAY_MINUTES)
+    window_end = window_start + timedelta(minutes=WINDOW_DURATION_MINUTES)
+    return window_start, window_end
+
+
+def get_anchor_time(state, current_time):
+    anchor_time = parse_timestamp(state.get("anchor_time"))
+    if anchor_time is None:
+        # Bootstrap with an immediate detection window after first startup.
+        anchor_time = current_time - timedelta(minutes=WINDOW_DELAY_MINUTES)
+        state["anchor_time"] = format_timestamp(anchor_time)
+        save_runtime_state(state)
+        logger.info("Initialized detection anchor at {}", format_timestamp(anchor_time))
+    return anchor_time
+
+
+def align_anchor_time(state, current_time):
+    anchor_time = get_anchor_time(state, current_time)
+    advanced = False
+
+    while True:
+        _, window_end = compute_window(anchor_time)
+        if current_time < window_end:
+            break
+        anchor_time += timedelta(minutes=CYCLE_INTERVAL_MINUTES)
+        advanced = True
+
+    if advanced:
+        state["anchor_time"] = format_timestamp(anchor_time)
+        save_runtime_state(state)
+
+    return anchor_time
+
+
+def set_anchor_time(state, anchor_time):
+    state["anchor_time"] = format_timestamp(anchor_time)
+    state["last_deploy_time"] = format_timestamp(anchor_time)
+    save_runtime_state(state)
 
 
 def update_env_app_id_map(app_id, service_env_id, env_path=".env"):
@@ -203,6 +287,28 @@ def auto_redeploy():
     cookie, headers, app_id_map = load_runtime_config()
     ensure_cookie_present(cookie)
 
+    current_time = now_in_beijing()
+    if is_quiet_hours(current_time):
+        logger.info("Quiet hours in effect (UTC+8), skip checks until 06:00")
+        return
+
+    state = load_runtime_state()
+    anchor_time = align_anchor_time(state, current_time)
+    window_start, window_end = compute_window(anchor_time)
+    if current_time < window_start:
+        logger.info(
+            "Detection window not started yet, next window: {} to {} (UTC+8)",
+            format_timestamp(window_start),
+            format_timestamp(window_end),
+        )
+        return
+
+    logger.info(
+        "Detection window active: {} to {} (UTC+8)",
+        format_timestamp(window_start),
+        format_timestamp(window_end),
+    )
+
     apps = list_apps()
     if not apps:
         logger.warning("No apps fetched, skipping this round")
@@ -234,6 +340,8 @@ def auto_redeploy():
 
         logger.warning("{} domain expired, triggering redeploy", app_name)
         if trigger_deploy(env_id, headers):
+            deploy_time = now_in_beijing()
+            set_anchor_time(state, deploy_time)
             logger.success("{} deploy triggered successfully", app_name)
         else:
             logger.error("{} deploy failed", app_name)
